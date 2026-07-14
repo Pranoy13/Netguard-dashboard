@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NetGuard — Analyst Login</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0716;
+    --panel: #100c22;
+    --accent: #8b5cf6;
+    --accent-bright: #a78bfa;
+    --accent-dim: #6d28d9;
+    --low: #4ade80;
+    --medium: #fbbf24;
+    --high: #f87171;
+    --text-main: #e5e0f5;
+    --text-dim: #9c94b8;
+    --border: rgba(139, 92, 246, 0.22);
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    font-family: 'Inter', system-ui, sans-serif;
+    color: var(--text-main);
+    overflow: hidden;
+  }
+
+  .wrap { display: flex; height: 100vh; min-height: 600px; }
+
+  /* ---------- LEFT: live feed panel ---------- */
+  .feed-panel {
+    flex: 1.4;
+    background: var(--panel);
+    position: relative;
+    padding: 36px 40px;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+    overflow: hidden;
+  }
+  .feed-panel::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent-bright), transparent);
+    opacity: 0.5;
+    animation: sweep 4s linear infinite;
+  }
+  @keyframes sweep { 0% { top: 0%; } 100% { top: 100%; } }
+
+  .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .brand .glyph {
+    width: 26px; height: 26px;
+    border: 2px solid var(--accent-bright);
+    border-radius: 5px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--accent-bright);
+    font-size: 13px; font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .brand span {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700; font-size: 15px; letter-spacing: 1px;
+  }
+
+  .feed-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--text-dim);
+    letter-spacing: 1.5px; margin-bottom: 24px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .feed-label .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--low);
+    box-shadow: 0 0 6px var(--low);
+    animation: blink 1.4s ease-in-out infinite;
+  }
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  .log-stream {
+    flex: 1;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    line-height: 2;
+    color: var(--text-dim);
+    overflow: hidden;
+  }
+  .log-stream div { white-space: nowrap; animation: fadeInLine 0.4s ease-out; }
+  @keyframes fadeInLine {
+    from { opacity: 0; transform: translateX(-6px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  .log-stream .ts { color: var(--accent-dim); }
+  .log-stream .alert { color: var(--high); }
+  .log-stream .warn { color: var(--medium); }
+  .log-stream .ok { color: var(--low); }
+
+  .feed-footer {
+    display: flex; gap: 28px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--text-dim);
+  }
+  .feed-footer b { color: var(--text-main); font-size: 13px; display: block; font-family: 'Inter'; }
+
+  /* ---------- RIGHT: form panel ---------- */
+  .form-panel {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+  }
+  .form-inner { width: 100%; max-width: 320px; }
+  .form-inner h1 { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+  .form-inner p.sub { color: var(--text-dim); font-size: 13px; margin-bottom: 30px; }
+
+  label {
+    display: block; font-size: 11px; color: var(--text-dim);
+    letter-spacing: 1px; text-transform: uppercase;
+    margin-bottom: 8px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text-main);
+    padding: 12px 14px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    font-size: 14px;
+    font-family: 'Inter', sans-serif;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(139,92,246,0.15);
+  }
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px var(--bg) inset !important;
+    -webkit-text-fill-color: var(--text-main) !important;
+    caret-color: var(--text-main);
+  }
+
+  button {
+    width: 100%;
+    background: linear-gradient(135deg, var(--accent), var(--accent-dim));
+    border: none;
+    color: white;
+    padding: 13px;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 13.5px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    margin-top: 6px;
+    box-shadow: 0 4px 14px rgba(139,92,246,0.3);
+    transition: transform 0.15s, box-shadow 0.15s;
+    font-family: 'Inter', sans-serif;
+  }
+  button:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(139,92,246,0.4); }
+
+  .error, .success {
+    font-size: 13px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    margin-bottom: 18px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .error {
+    background: rgba(248, 113, 113, 0.08);
+    border: 1px solid rgba(248, 113, 113, 0.3);
+    color: var(--high);
+  }
+  .success {
+    background: rgba(74, 222, 128, 0.08);
+    border: 1px solid rgba(74, 222, 128, 0.3);
+    color: var(--low);
+  }
+
+  .switch-link {
+    margin-top: 22px;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .switch-link a { color: var(--accent-bright); text-decoration: none; font-weight: 600; }
+  .switch-link a:hover { text-decoration: underline; }
+
+  .footer-note {
+    margin-top: 22px;
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.3px;
+  }
+
+  @media (max-width: 800px) {
+    .wrap { flex-direction: column; overflow-y: auto; }
+    .feed-panel { flex: none; min-height: 220px; border-right: none; border-bottom: 1px solid var(--border); }
+    .form-panel { flex: none; padding: 40px 24px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="feed-panel">
+    <div class="brand"><div class="glyph">NG</div><span>NETGUARD</span></div>
+    <div class="feed-label"><span class="dot"></span> LIVE PACKET FEED</div>
+    <div class="log-stream" id="logStream"></div>
+    <div class="feed-footer">
+      <div><b>1,062</b>PACKETS TODAY</div>
+      <div><b>3</b>SESSIONS LOGGED</div>
+      <div><b>02:41:19</b>UPTIME</div>
+    </div>
+  </div>
+
+  <div class="form-panel">
+    <div class="form-inner">
+      <h1>Analyst Access</h1>
+      <p class="sub">Sign in to view live traffic and alerts.</p>
+      {% if error %}<div class="error">ERROR: {{ error }}</div>{% endif %}
+      {% if success %}<div class="success">{{ success }}</div>{% endif %}
+      <form method="POST">
+        <label>Username</label>
+        <input type="text" name="username" required autocomplete="off">
+        <label>Password</label>
+        <input type="password" name="password" required>
+        <button type="submit">Sign In</button>
+      </form>
+      <p class="switch-link">New analyst? <a href="/register">Create an account</a></p>
+      <p class="footer-note">AUTHORIZED PERSONNEL ONLY · SESSION LOGGED</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  const lines = [
+    { ts: '14:32:07', text: 'TCP 172.21.234.179:443 → ESTABLISHED', cls: '' },
+    { ts: '14:32:07', text: 'DNS query resolved — 12ms', cls: '' },
+    { ts: '14:32:08', text: 'UDP flow closed 0.0.0.0:5353', cls: '' },
+    { ts: '14:32:09', text: 'ALERT: traffic spike detected z=4.12', cls: 'alert' },
+    { ts: '14:32:10', text: 'HTTPS handshake complete', cls: 'ok' },
+    { ts: '14:32:11', text: 'TCP 172.21.228.214:445 flagged — SMB', cls: 'warn' },
+    { ts: '14:32:12', text: 'GeoIP lookup: 34.149.66.154 → US', cls: '' },
+    { ts: '14:32:13', text: 'Session packet count: 1,062', cls: 'ok' },
+  ];
+  const stream = document.getElementById('logStream');
+  let i = 0;
+  const maxLines = 9;
+  function addLine() {
+    const l = lines[i % lines.length];
+    const div = document.createElement('div');
+    div.innerHTML = `<span class="ts">[${l.ts}]</span> <span class="${l.cls}">${l.text}</span>`;
+    stream.appendChild(div);
+    if (stream.children.length > maxLines) stream.removeChild(stream.firstChild);
+    i++;
+  }
+  for (let n = 0; n < 6; n++) addLine();
+  setInterval(addLine, 1800);
+</script>
+
+</body>
+</html>

@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NetGuard — Security Monitoring Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg-dark: #0a0716;
+    --bg-panel: rgba(26, 20, 48, 0.6);
+    --accent-purple: #8b5cf6;
+    --accent-glow: #a78bfa;
+    --text-main: #e5e0f5;
+    --text-dim: #9c94b8;
+    --low: #4ade80;
+    --medium: #fbbf24;
+    --high: #f87171;
+    --border: rgba(139, 92, 246, 0.25);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg-dark);
+    color: var(--text-main);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh;
+  }
+
+  /* Ambient glow background, same language as login */
+  body::before, body::after {
+    content: '';
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(100px);
+    opacity: 0.15;
+    z-index: 0;
+    pointer-events: none;
+  }
+  body::before {
+    width: 400px; height: 400px;
+    background: #8b5cf6;
+    top: -100px; left: -100px;
+  }
+  body::after {
+    width: 350px; height: 350px;
+    background: #6d28d9;
+    bottom: -100px; right: -100px;
+  }
+
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(20, 15, 38, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    padding: 18px 30px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: box-shadow 0.3s;
+  }
+  header.scrolled {
+    box-shadow: 0 8px 30px rgba(0,0,0,0.35);
+  }
+
+  header h1 {
+    font-size: 20px;
+    font-weight: 700;
+    background: linear-gradient(90deg, var(--accent-glow), #c4b5fd);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  header .status-dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--text-dim);
+    display: inline-block;
+    margin-right: 6px;
+  }
+  header .status-dot.active {
+    background: var(--low);
+    box-shadow: 0 0 8px var(--low);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.85); }
+  }
+
+  .controls {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    gap: 10px;
+    padding: 22px 30px;
+    flex-wrap: wrap;
+    align-items: center;
+    background: rgba(139, 92, 246, 0.04);
+    border-bottom: 1px solid var(--border);
+  }
+
+  select, input[type="number"], input[type="text"], input[type="file"], button {
+    background: rgba(15, 11, 30, 0.7);
+    color: var(--text-main);
+    border: 1px solid var(--border);
+    padding: 9px 14px;
+    border-radius: 8px;
+    font-size: 13.5px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  input:focus, select:focus {
+    outline: none;
+    border-color: var(--accent-purple);
+    box-shadow: 0 0 0 3px rgba(139,92,246,0.15);
+  }
+
+  button {
+    background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    box-shadow: 0 4px 14px rgba(139,92,246,0.25);
+    transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+  }
+  button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(139,92,246,0.35); }
+  button:active:not(:disabled) { transform: translateY(0); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+
+  .grid {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 20px;
+    padding: 0 30px 30px;
+  }
+
+  .panel {
+    background: var(--bg-panel);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px;
+    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+    animation: fadeIn 0.4s ease-out;
+  }
+  .panel:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 30px rgba(0,0,0,0.3);
+    border-color: rgba(139, 92, 246, 0.4);
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .panel h2 {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-bottom: 16px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .panel.wide { grid-column: 1 / -1; }
+
+  #alertsPanel { grid-column: 1 / -1; }
+  .alert-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.03);
+    border-left: 3px solid var(--text-dim);
+    font-size: 13px;
+    transition: background 0.2s;
+    animation: fadeIn 0.3s ease-out;
+  }
+  .alert-row:hover { background: rgba(255,255,255,0.06); }
+  .alert-row.low { border-left-color: var(--low); }
+  .alert-row.medium { border-left-color: var(--medium); }
+  .alert-row.high { border-left-color: var(--high); }
+
+  .severity-badge {
+    font-size: 10.5px;
+    padding: 3px 10px;
+    border-radius: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    margin-left: 12px;
+  }
+  .severity-badge.low { background: rgba(74,222,128,0.15); color: var(--low); }
+  .severity-badge.medium { background: rgba(251,191,36,0.15); color: var(--medium); }
+  .severity-badge.high { background: rgba(248,113,113,0.15); color: var(--high); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); }
+  th { color: var(--text-dim); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+  tbody tr { transition: background 0.15s; }
+  tbody tr:hover { background: rgba(139, 92, 246, 0.06); }
+
+  .empty-state {
+    color: var(--text-dim);
+    text-align: center;
+    padding: 40px 20px;
+    font-size: 13px;
+  }
+
+  /* Loading skeleton */
+  .skeleton {
+    background: linear-gradient(90deg, rgba(139,92,246,0.06) 25%, rgba(139,92,246,0.14) 50%, rgba(139,92,246,0.06) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite;
+    border-radius: 6px;
+    height: 14px;
+    margin-bottom: 10px;
+  }
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  canvas { max-height: 260px; }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .header-right a {
+    color: var(--text-dim);
+    font-size: 13px;
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+  .header-right a:hover { color: var(--accent-glow); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🛡 NetGuard Dashboard</h1>
+  <div class="header-right">
+    <span><span class="status-dot" id="statusDot"></span>
+    <span id="statusText" style="color: var(--text-dim); font-size: 13px;">No active session</span></span>
+    <span style="color: var(--text-dim); font-size: 13px;">👤 {{ username }}</span>
+    <a href="/logout">Logout</a>
+  </div>
+</header>
+
+<div class="controls">
+  <input type="text" id="sessionName" placeholder="Session name (optional)">
+  <input type="number" id="captureDuration" value="30" min="5" style="width:80px;" title="Duration (seconds)">
+  <button id="startBtn" onclick="startCapture()">▶ Start Live Capture</button>
+  <span style="color: var(--text-dim);">or</span>
+  <input type="file" id="pcapFile" accept=".pcap,.pcapng">
+  <button onclick="uploadPcap()">⬆ Upload PCAP</button>
+  <select id="sessionSelect" onchange="loadSession(this.value)"></select>
+  <button onclick="exportReport()">⬇ Export Report</button>
+</div>
+
+<div class="grid">
+  <div class="panel">
+    <h2>Protocol Breakdown</h2>
+    <canvas id="protocolChart"></canvas>
+  </div>
+
+  <div class="panel">
+    <h2>Top Talkers</h2>
+    <table id="topTalkersTable">
+      <thead><tr><th>Source IP</th><th>Packets</th><th>Bytes</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="panel wide">
+    <h2>Traffic Over Time</h2>
+    <canvas id="timelineChart"></canvas>
+  </div>
+
+  <div class="panel">
+    <h2>Traffic by Country</h2>
+    <canvas id="geoChart"></canvas>
+  </div>
+
+  <div class="panel">
+    <h2>Top Destination Ports</h2>
+    <canvas id="portsChart"></canvas>
+  </div>
+
+  <div class="panel" id="alertsPanel">
+    <h2>Security Alerts</h2>
+    <div id="alertsList"><div class="empty-state">No alerts yet</div></div>
+  </div>
+</div>
+
+<script>
+const API = 'http://127.0.0.1:5000/api';
+let currentSessionId = null;
+let refreshTimer = null;
+let charts = {};
+
+// Sticky header shadow on scroll
+window.addEventListener('scroll', () => {
+  const header = document.querySelector('header');
+  if (window.scrollY > 10) header.classList.add('scrolled');
+  else header.classList.remove('scrolled');
+});
+
+function showSkeleton(elementId, rows = 4) {
+  const el = document.getElementById(elementId);
+  el.innerHTML = Array(rows).fill('<div class="skeleton"></div>').join('');
+}
+
+async function checkEnvironment() {
+  const res = await fetch(`${API}/environment`);
+  const data = await res.json();
+  if (!data.live_capture_available) {
+    document.getElementById('startBtn').disabled = true;
+    document.getElementById('startBtn').innerText = '⛔ Live Capture Unavailable (Cloud Mode)';
+    document.getElementById('sessionName').disabled = true;
+    document.getElementById('captureDuration').disabled = true;
+    document.getElementById('statusText').innerText = 'Cloud deployment — upload a PCAP file to analyze traffic';
+  }
+}
+checkEnvironment();
+
+function initCharts() {
+  charts.protocol = new Chart(document.getElementById('protocolChart'), {
+    type: 'doughnut',
+    data: { labels: [], datasets: [{ data: [], backgroundColor: ['#8b5cf6','#a78bfa','#c4b5fd','#6d28d9','#4c1d95','#f87171','#fbbf24'] }] },
+    options: { plugins: { legend: { labels: { color: '#e5e0f5' } } } }
+  });
+
+  charts.geo = new Chart(document.getElementById('geoChart'), {
+    type: 'pie',
+    data: { labels: [], datasets: [{ data: [], backgroundColor: ['#8b5cf6','#a78bfa','#c4b5fd','#6d28d9','#4c1d95','#f87171'] }] },
+    options: { plugins: { legend: { labels: { color: '#e5e0f5' }, position: 'right' } } }
+  });
+
+  charts.timeline = new Chart(document.getElementById('timelineChart'), {
+    type: 'line',
+    data: { labels: [], datasets: [{ label: 'Packets/sec', data: [], borderColor: '#a78bfa', backgroundColor: 'rgba(139,92,246,0.15)', fill: true, tension: 0.3 }] },
+    options: {
+      plugins: { legend: { labels: { color: '#e5e0f5' } } },
+      scales: {
+        x: { ticks: { color: '#9c94b8' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+        y: { ticks: { color: '#9c94b8' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+      }
+    }
+  });
+
+  charts.ports = new Chart(document.getElementById('portsChart'), {
+    type: 'bar',
+    data: { labels: [], datasets: [{ label: 'Hits', data: [], backgroundColor: '#8b5cf6' }] },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#9c94b8' }, grid: { display: false } },
+        y: { ticks: { color: '#9c94b8' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+      }
+    }
+  });
+}
+
+async function startCapture() {
+  const name = document.getElementById('sessionName').value;
+  const duration = parseInt(document.getElementById('captureDuration').value) || 30;
+
+  document.getElementById('startBtn').disabled = true;
+  document.getElementById('statusText').innerText = `Capturing for ${duration}s...`;
+  document.getElementById('statusDot').classList.add('active');
+
+  const res = await fetch(`${API}/sessions/start`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, duration })
+  });
+  const data = await res.json();
+  currentSessionId = data.session_id;
+
+  setTimeout(() => {
+    document.getElementById('startBtn').disabled = false;
+    document.getElementById('statusText').innerText = `Session ${currentSessionId} completed`;
+    document.getElementById('statusDot').classList.remove('active');
+    loadSessionsList();
+    refreshDashboard();
+  }, (duration + 2) * 1000);
+
+  refreshTimer = setInterval(refreshDashboard, 5000);
+}
+
+async function uploadPcap() {
+  const fileInput = document.getElementById('pcapFile');
+  if (!fileInput.files.length) return alert('Select a .pcap file first');
+
+  const formData = new FormData();
+  formData.append('file', fileInput.files[0]);
+
+  document.getElementById('statusText').innerText = 'Processing pcap file...';
+  const res = await fetch(`${API}/sessions/upload`, { method: 'POST', body: formData });
+  const data = await res.json();
+  currentSessionId = data.session_id;
+  document.getElementById('statusText').innerText = `Session ${currentSessionId} completed`;
+  loadSessionsList();
+  refreshDashboard();
+}
+
+async function loadSessionsList() {
+  const res = await fetch(`${API}/sessions`);
+  const sessions = await res.json();
+  const select = document.getElementById('sessionSelect');
+  select.innerHTML = '<option value="">-- Select past session --</option>';
+  sessions.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s.id;
+    opt.textContent = `#${s.id} ${s.name} (${s.total_packets} pkts, ${s.status})`;
+    select.appendChild(opt);
+  });
+}
+
+function loadSession(id) {
+  if (!id) return;
+  currentSessionId = parseInt(id);
+  document.getElementById('statusText').innerText = `Viewing session ${currentSessionId}`;
+  refreshDashboard();
+}
+
+async function refreshDashboard() {
+  if (!currentSessionId) return;
+  showSkeleton('alertsList', 3);
+
+const [protocols, talkers, timeline, ports, alerts, geo] = await Promise.all([
+    fetch(`${API}/stats/protocols/${currentSessionId}`).then(r => r.json()),
+    fetch(`${API}/stats/top-talkers/${currentSessionId}`).then(r => r.json()),
+    fetch(`${API}/stats/timeline/${currentSessionId}`).then(r => r.json()),
+    fetch(`${API}/stats/ports/${currentSessionId}`).then(r => r.json()),
+    fetch(`${API}/alerts/${currentSessionId}`).then(r => r.json()),
+    fetch(`${API}/geoip/${currentSessionId}`).then(r => r.json())
+  ]);
+
+  charts.protocol.data.labels = protocols.map(p => p.protocol);
+  charts.protocol.data.datasets[0].data = protocols.map(p => p.count);
+  charts.protocol.update();
+
+  charts.timeline.data.labels = timeline.map(t => t.time.split('T')[1]);
+  charts.timeline.data.datasets[0].data = timeline.map(t => t.packets);
+  charts.timeline.update();
+
+  charts.ports.data.labels = ports.map(p => p.dst_port);
+  charts.ports.data.datasets[0].data = ports.map(p => p.count);
+  charts.ports.update();
+
+  charts.geo.data.labels = geo.country_summary.map(c => c.country);
+  charts.geo.data.datasets[0].data = geo.country_summary.map(c => c.count);
+  charts.geo.update();
+
+  const tbody = document.querySelector('#topTalkersTable tbody');
+  tbody.innerHTML = talkers.length ? talkers.map(t =>
+    `<tr><td>${t.src_ip}</td><td>${t.packet_count}</td><td>${t.total_bytes || 0}</td></tr>`
+  ).join('') : '<tr><td colspan="3" class="empty-state">No data</td></tr>';
+
+  const alertsList = document.getElementById('alertsList');
+  alertsList.innerHTML = alerts.length ? alerts.map(a =>
+    `<div class="alert-row ${a.severity}">
+      <span><strong>${a.alert_type.replace(/_/g,' ').toUpperCase()}</strong> — ${a.description}</span>
+      <span class="severity-badge ${a.severity}">${a.severity}</span>
+    </div>`
+  ).join('') : '<div class="empty-state">No alerts yet</div>';
+}
+
+function exportReport() {
+  if (!currentSessionId) return alert('Select a session first');
+  window.open(`${API}/export/${currentSessionId}`, '_blank');
+}
+
+initCharts();
+loadSessionsList();
+</script>
+
+</body>
+</html>

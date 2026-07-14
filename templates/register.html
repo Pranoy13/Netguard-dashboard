@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NetGuard — Create Account</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0716; --panel: #100c22;
+    --accent: #8b5cf6; --accent-bright: #a78bfa; --accent-dim: #6d28d9;
+    --low: #4ade80; --high: #f87171;
+    --text-main: #e5e0f5; --text-dim: #9c94b8;
+    --border: rgba(139, 92, 246, 0.22);
+  }
+  html, body { height: 100%; background: var(--bg); font-family: 'Inter', system-ui, sans-serif; color: var(--text-main); }
+  body { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 40px;
+    width: 100%;
+    max-width: 380px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 30px; }
+  .brand .glyph {
+    width: 26px; height: 26px; border: 2px solid var(--accent-bright);
+    border-radius: 5px; display: flex; align-items: center; justify-content: center;
+    color: var(--accent-bright); font-size: 13px; font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .brand span { font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 15px; letter-spacing: 1px; }
+
+  h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+  p.sub { color: var(--text-dim); font-size: 13px; margin-bottom: 28px; }
+
+  label {
+    display: block; font-size: 11px; color: var(--text-dim);
+    letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  input {
+    width: 100%; background: var(--bg); border: 1px solid var(--border);
+    color: var(--text-main); padding: 12px 14px; border-radius: 6px;
+    margin-bottom: 18px; font-size: 14px; font-family: 'Inter', sans-serif;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(139,92,246,0.15); }
+
+  button {
+    width: 100%; background: linear-gradient(135deg, var(--accent), var(--accent-dim));
+    border: none; color: white; padding: 13px; border-radius: 6px;
+    font-weight: 700; font-size: 13.5px; letter-spacing: 0.5px; text-transform: uppercase;
+    cursor: pointer; margin-top: 4px; box-shadow: 0 4px 14px rgba(139,92,246,0.3);
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  button:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(139,92,246,0.4); }
+
+  .error {
+    background: rgba(248, 113, 113, 0.08); border: 1px solid rgba(248, 113, 113, 0.3);
+    color: var(--high); font-size: 13px; padding: 10px 12px; border-radius: 6px;
+    margin-bottom: 18px; font-family: 'JetBrains Mono', monospace;
+  }
+
+  .switch-link { margin-top: 22px; font-size: 13px; color: var(--text-dim); text-align: center; }
+  .switch-link a { color: var(--accent-bright); text-decoration: none; font-weight: 600; }
+  .switch-link a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand"><div class="glyph">NG</div><span>NETGUARD</span></div>
+    <h1>Create Analyst Account</h1>
+    <p class="sub">Register to access the monitoring dashboard.</p>
+    {% if error %}<div class="error">ERROR: {{ error }}</div>{% endif %}
+    <form method="POST">
+      <label>Username</label>
+      <input type="text" name="username" required autocomplete="off">
+      <label>Password</label>
+      <input type="password" name="password" required>
+      <label>Confirm Password</label>
+      <input type="password" name="confirm" required>
+      <button type="submit">Create Account</button>
+    </form>
+    <p class="switch-link">Already have an account? <a href="/login">Sign in</a></p>
+  </div>
+</body>
+</html>
