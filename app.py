@@ -26,7 +26,7 @@ def login_required(f):
 app = Flask(__name__)
 CORS(app)
 
-app.secret_key = "netguard-secret-key-change-this-in-production"
+app.secret_key = os.environ.get("SECRET_KEY", "netguard-secret-key-change-this-in-production")
 
 @app.route('/api/environment', methods=['GET'])
 def get_environment():
