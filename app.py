@@ -6,6 +6,17 @@ from datetime import datetime
 import threading
 import sys, os
 
+
+COMMON_PORTS = {
+    20: "FTP-DATA", 21: "FTP", 22: "SSH", 23: "Telnet", 25: "SMTP",
+    53: "DNS", 67: "DHCP", 68: "DHCP", 80: "HTTP", 110: "POP3",
+    123: "NTP", 137: "NetBIOS", 138: "NetBIOS", 139: "NetBIOS",
+    143: "IMAP", 161: "SNMP", 443: "HTTPS", 445: "SMB",
+    465: "SMTPS", 587: "SMTP-TLS", 993: "IMAPS", 995: "POP3S",
+    3306: "MySQL", 3389: "RDP", 5353: "mDNS", 8080: "HTTP-Alt",
+    8443: "HTTPS-Alt"
+}
+
 sys.path.append(os.path.dirname(__file__))
 from database.db_setup import get_connection, init_db
 from capture.sniffer import start_live_capture, process_pcap_file
@@ -252,6 +263,7 @@ def traffic_timeline(session_id):
 
 
 @app.route('/api/stats/ports/<int:session_id>', methods=['GET'])
+@login_required
 def port_stats(session_id):
     conn = get_connection()
     cursor = conn.cursor()
@@ -262,6 +274,10 @@ def port_stats(session_id):
     ''', (session_id,))
     data = [dict(row) for row in cursor.fetchall()]
     conn.close()
+
+    for row in data:
+        row["service"] = COMMON_PORTS.get(row["dst_port"], "Unknown")
+
     return jsonify(data)
 
 
@@ -277,6 +293,46 @@ def get_alerts(session_id):
     data = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return jsonify(data)
+
+@app.route('/api/packets/<int:session_id>', methods=['GET'])
+@login_required
+def get_packets(session_id):
+    page = int(request.args.get('page', 1))
+    per_page = 25
+    offset = (page - 1) * per_page
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT COUNT(*) as total FROM packets WHERE session_id = ?", (session_id,))
+    total = cursor.fetchone()["total"]
+
+    cursor.execute('''
+        SELECT * FROM packets WHERE session_id = ?
+        ORDER BY id ASC LIMIT ? OFFSET ?
+    ''', (session_id, per_page, offset))
+    packets = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+
+    return jsonify({
+        "packets": packets,
+        "page": page,
+        "per_page": per_page,
+        "total": total,
+        "total_pages": (total + per_page - 1) // per_page
+    })
+    
+    
+
+@app.route('/api/geoip/points/<int:session_id>', methods=['GET'])
+@login_required
+def geoip_points(session_id):
+    data = get_session_geo_summary(session_id)
+    points = [
+        {"ip": d["ip"], "country": d["country"], "city": d["city"], "lat": d["latitude"], "lng": d["longitude"]}
+        for d in data["details"] if d["latitude"] is not None and d["longitude"] is not None
+    ]
+    return jsonify(points)
 
 
 init_db()

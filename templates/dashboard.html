@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <title>NetGuard — Security Monitoring Dashboard</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <style>
   :root {
     --bg-dark: #0a0716;
@@ -298,16 +300,39 @@
     <canvas id="geoChart"></canvas>
   </div>
 
+  <div class="panel wide">
+    <h2>Traffic Origin Map</h2>
+    <div id="geoMap" style="height: 350px; border-radius: 8px;"></div>
+  </div>
+
   <div class="panel">
-    <h2>Top Destination Ports</h2>
+    <h2>Ports Observed in Traffic</h2>
     <canvas id="portsChart"></canvas>
+    <div id="portsLegend" style="margin-top:12px; font-size:11px; color:var(--text-dim); display:flex; flex-wrap:wrap; gap:8px;"></div>
   </div>
 
   <div class="panel" id="alertsPanel">
     <h2>Security Alerts</h2>
     <div id="alertsList"><div class="empty-state">No alerts yet</div></div>
   </div>
+
+  <div class="panel wide">
+  <h2>Packet Explorer</h2>
+  <table id="packetTable">
+    <thead>
+      <tr><th>#</th><th>Time</th><th>Source</th><th>Destination</th><th>Protocol</th><th>Size</th><th>Flags</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px;">
+    <span id="packetPageInfo" style="color: var(--text-dim); font-size: 12px;"></span>
+    <div style="display:flex; gap:8px;">
+      <button onclick="changePacketPage(-1)" id="prevPageBtn">← Prev</button>
+      <button onclick="changePacketPage(1)" id="nextPageBtn">Next →</button>
+    </div>
+  </div>
 </div>
+
 
 <script>
 const API = 'http://127.0.0.1:5000/api';
@@ -321,6 +346,8 @@ window.addEventListener('scroll', () => {
   if (window.scrollY > 10) header.classList.add('scrolled');
   else header.classList.remove('scrolled');
 });
+
+
 
 function showSkeleton(elementId, rows = 4) {
   const el = document.getElementById(elementId);
@@ -376,6 +403,70 @@ function initCharts() {
       }
     }
   });
+}
+
+let geoMap = null;
+let geoMarkers = [];
+
+function initMap() {
+  geoMap = L.map('geoMap', { worldCopyJump: true }).setView([20, 0], 2);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap contributors © CARTO',
+    subdomains: 'abcd',
+    maxZoom: 19
+  }).addTo(geoMap);
+}
+
+async function loadGeoMap() {
+  if (!currentSessionId || !geoMap) return;
+
+  geoMarkers.forEach(m => geoMap.removeLayer(m));
+  geoMarkers = [];
+
+  const res = await fetch(`${API}/geoip/points/${currentSessionId}`);
+  const points = await res.json();
+
+  points.forEach(p => {
+    const marker = L.circleMarker([p.lat, p.lng], {
+      radius: 7,
+      fillColor: '#8b5cf6',
+      color: '#a78bfa',
+      weight: 1.5,
+      fillOpacity: 0.7
+    }).addTo(geoMap);
+    marker.bindPopup(`<b>${p.ip}</b><br>${p.city}, ${p.country}`);
+    geoMarkers.push(marker);
+  });
+}
+
+let currentPacketPage = 1;
+
+async function loadPackets(page = 1) {
+  if (!currentSessionId) return;
+  const res = await fetch(`${API}/packets/${currentSessionId}?page=${page}`);
+  const data = await res.json();
+  currentPacketPage = data.page;
+
+  const tbody = document.querySelector('#packetTable tbody');
+  tbody.innerHTML = data.packets.length ? data.packets.map(p => `
+    <tr>
+      <td>${p.id}</td>
+      <td>${p.timestamp.split('T')[1]?.split('.')[0] || p.timestamp}</td>
+      <td>${p.src_ip}${p.src_port ? ':' + p.src_port : ''}</td>
+      <td>${p.dst_ip}${p.dst_port ? ':' + p.dst_port : ''}</td>
+      <td>${p.protocol}</td>
+      <td>${p.packet_size} B</td>
+      <td>${p.flags || '-'}</td>
+    </tr>
+  `).join('') : '<tr><td colspan="7" class="empty-state">No packets</td></tr>';
+
+  document.getElementById('packetPageInfo').innerText = `Page ${data.page} of ${data.total_pages} — ${data.total} total packets`;
+  document.getElementById('prevPageBtn').disabled = data.page <= 1;
+  document.getElementById('nextPageBtn').disabled = data.page >= data.total_pages;
+}
+
+function changePacketPage(direction) {
+  loadPackets(currentPacketPage + direction);
 }
 
 async function startCapture() {
@@ -443,6 +534,8 @@ function loadSession(id) {
 
 async function refreshDashboard() {
   if (!currentSessionId) return;
+  loadPackets(1);
+  loadGeoMap();
   showSkeleton('alertsList', 3);
 
 const [protocols, talkers, timeline, ports, alerts, geo] = await Promise.all([
@@ -462,9 +555,13 @@ const [protocols, talkers, timeline, ports, alerts, geo] = await Promise.all([
   charts.timeline.data.datasets[0].data = timeline.map(t => t.packets);
   charts.timeline.update();
 
-  charts.ports.data.labels = ports.map(p => p.dst_port);
+  charts.ports.data.labels = ports.map(p => `${p.dst_port}`);
   charts.ports.data.datasets[0].data = ports.map(p => p.count);
   charts.ports.update();
+
+  document.getElementById('portsLegend').innerHTML = ports.map(p =>
+    `<span>🔹 ${p.dst_port} — ${p.service}</span>`
+  ).join('');
 
   charts.geo.data.labels = geo.country_summary.map(c => c.country);
   charts.geo.data.datasets[0].data = geo.country_summary.map(c => c.count);
@@ -490,6 +587,7 @@ function exportReport() {
 }
 
 initCharts();
+initMap();
 loadSessionsList();
 </script>
 
