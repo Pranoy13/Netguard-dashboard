@@ -1,4 +1,4 @@
-# 🛡 NetGuard — Network Traffic Visualization Dashboard for Security Monitoring
+#  NetGuard — Network Traffic Visualization Dashboard for Security Monitoring
 
 NetGuard is a full-stack network security monitoring tool that captures network traffic (live or via uploaded `.pcap` files), classifies it, runs rule-based and statistical threat detection, and visualizes everything on a real-time analyst dashboard — modeled after real Security Operations Center (SOC) tooling.
 
